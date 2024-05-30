@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.Objects;
 
 @QuiltLoaderInternal(QuiltLoaderInternalType.LEGACY_EXPOSED)
-class KnotClassLoader extends SecureClassLoader implements KnotClassLoaderInterface {
+public class KnotClassLoader extends SecureClassLoader implements KnotClassLoaderInterface {
 	private static class DynamicURLClassLoader extends URLClassLoader {
 		private DynamicURLClassLoader(URL[] urls) {
 			super(urls, new DummyClassLoader());
@@ -71,7 +71,7 @@ class KnotClassLoader extends SecureClassLoader implements KnotClassLoaderInterf
 	private final ClassLoader originalLoader;
 	private final KnotClassDelegate delegate;
 
-	KnotClassLoader(boolean isDevelopment, EnvType envType, GameProvider provider) {
+	public KnotClassLoader(boolean isDevelopment, EnvType envType, GameProvider provider) {
 		super(new DynamicURLClassLoader(new URL[0]));
 		this.originalLoader = getClass().getClassLoader();
 		// For compatibility we send all URLs to the fake loader
