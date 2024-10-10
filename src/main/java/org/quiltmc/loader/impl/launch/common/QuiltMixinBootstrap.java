@@ -26,6 +26,8 @@ import net.fabricmc.loader.api.VersionParsingException;
 import net.fabricmc.loader.api.metadata.ModDependency;
 import net.fabricmc.loader.api.metadata.version.VersionInterval;
 
+import net.fabricmc.mappingio.tree.MappingTreeView;
+
 import org.quiltmc.loader.api.ModContainer;
 import org.quiltmc.loader.api.ModContainer.BasicSourceType;
 import org.quiltmc.loader.api.plugin.ModContainerExt;
@@ -38,7 +40,6 @@ import org.quiltmc.loader.impl.util.QuiltLoaderInternalType;
 import org.quiltmc.loader.impl.util.log.Log;
 import org.quiltmc.loader.impl.util.log.LogCategory;
 import org.quiltmc.loader.impl.util.mappings.MixinIntermediaryDevRemapper;
-import net.fabricmc.mapping.tree.TinyTree;
 
 import org.spongepowered.asm.launch.MixinBootstrap;
 import org.spongepowered.asm.mixin.FabricUtil;
@@ -81,10 +82,11 @@ public final class QuiltMixinBootstrap {
 
 		if (QuiltLauncherBase.getLauncher().isDevelopment()) {
 			MappingConfiguration mappingConfiguration = QuiltLauncherBase.getLauncher().getMappingConfiguration();
-			TinyTree mappings = mappingConfiguration.getMappings();
+			MappingTreeView mappings = mappingConfiguration.getMappings();
 
 			if (mappings != null) {
-				List<String> namespaces = mappings.getMetadata().getNamespaces();
+				List<String> namespaces = new ArrayList<>(mappings.getDstNamespaces());
+				namespaces.add(mappings.getSrcNamespace());
 
 				if (namespaces.contains("intermediary") && namespaces.contains(mappingConfiguration.getTargetNamespace())) {
 					System.setProperty("mixin.env.remapRefMap", "true");
@@ -145,7 +147,7 @@ public final class QuiltMixinBootstrap {
 			// maximum loader version and bundled fabric mixin version, DESCENDING ORDER, LATEST FIRST
 			// loader versions with new mixin versions need to be added here
 
-			// addVersion("0.13", FabricUtil.COMPATIBILITY_0_11_0); // example for next entry (latest first!)
+			addVersion("0.16.0", FabricUtil.COMPATIBILITY_0_14_0);
 			addVersion("0.12.0-", FabricUtil.COMPATIBILITY_0_10_0);
 		}
 
@@ -171,9 +173,11 @@ public final class QuiltMixinBootstrap {
 			List<VersionInterval> reqIntervals = Collections.singletonList(VersionInterval.INFINITE);
 
 			if (!isFabric) {
-				// quilt or builtin mod, we can assume it uses latest compat
-				Log.debug(LogCategory.MIXIN, "Assuming Quilt mod %s uses latest mixin compatibility", metadata.id());
-				return FabricUtil.COMPATIBILITY_LATEST;
+				// quilt or builtin mod, we can assume it uses latest (0.10.0 at the time) compat
+				// Except since <insert update that introduces mixin 0.14.0 compat>, we can't assume that anymore!
+				// TODO - Handle Quilt mods like Fabric mods but with our own version ranges
+				Log.debug(LogCategory.MIXIN, "Assuming Quilt mod %s uses 0.10.0 mixin compatibility", metadata.id());
+				return FabricUtil.COMPATIBILITY_0_10_0;
 			}
 
 			FabricLoaderModMetadata fabricMeta = ((InternalModMetadata) metadata).asFabricModMetadata();
@@ -200,11 +204,10 @@ public final class QuiltMixinBootstrap {
 					if (minLoaderVersion.compareTo(version.loaderVersion) >= 0) { // lower bound is >= current version
 						Log.debug(LogCategory.MIXIN, "Mod %s requires loader version %s, using mixin compatibility %s", metadata.id(), minLoaderVersion, version.mixinVersion);
 						return version.mixinVersion;
-					} else {
-						Log.debug(LogCategory.MIXIN, "Mod %s requires loader version %s, using 0.9.2 mixin compatability", metadata.id(), minLoaderVersion);
-						return FabricUtil.COMPATIBILITY_0_9_2;
 					}
 				}
+				Log.debug(LogCategory.MIXIN, "Mod %s requires loader version %s, using 0.9.2 mixin compatability", metadata.id(), minLoaderVersion);
+				return FabricUtil.COMPATIBILITY_0_9_2;
 			}
 
 			// Mod doesn't declare a dependency on a loader version; use oldest mixin compat version
