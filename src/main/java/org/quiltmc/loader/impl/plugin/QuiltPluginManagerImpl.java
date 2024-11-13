@@ -182,7 +182,6 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 
 	final Queue<MainThreadTask> mainThreadTasks;
 
-	public final GuiManagerImpl guiManager = GuiManagerImpl.MANAGER;
 	/** The root tree node for the "files" tab. */
 	public final QuiltStatusNode guiFileRoot = QuiltLoaderGuiImpl.createTreeNode();
 	public final QuiltStatusNode guiModsRoot =  QuiltLoaderGuiImpl.createTreeNode();
@@ -688,18 +687,31 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 	// #######
 
 	@Override
+	public QuiltTreeNode getTreeNode(ModLoadOption mod) {
+		return modGuiNodes.get(mod);
+	}
+
+	@Override
+	@Deprecated
 	public PluginGuiTreeNode getGuiNode(ModLoadOption mod) {
 		return modGuiNodes.get(mod);
 	}
 
 	@Override
+	public QuiltTreeNode getFilesTreeNode() {
+		return guiFileRoot;
+	}
+
+	@Override
+	@Deprecated
 	public PluginGuiTreeNode getRootGuiNode() {
 		return guiFileRoot;
 	}
 
 	@Override
+	@Deprecated
 	public PluginGuiManager getGuiManager() {
-		return guiManager;
+		return GuiManagerImpl.MANAGER;
 	}
 
 	public QuiltDisplayedError reportError(BasePluginContext reporter, QuiltLoaderText title) {

@@ -44,6 +44,7 @@ import org.quiltmc.loader.api.gui.QuiltDisplayedError;
 import org.quiltmc.loader.api.gui.QuiltLoaderGui;
 import org.quiltmc.loader.api.gui.QuiltLoaderIcon;
 import org.quiltmc.loader.api.gui.QuiltLoaderText;
+import org.quiltmc.loader.api.gui.QuiltTreeNode;
 import org.quiltmc.loader.api.QuiltLoader;
 import org.quiltmc.loader.api.Version;
 import org.quiltmc.loader.api.VersionRange;
@@ -456,9 +457,9 @@ public class StandardQuiltPlugin extends BuiltinQuiltPlugin {
 				Collection<? extends ProvidedMod> provides = metadata.provides();
 
 				for (ProvidedMod provided : provides) {
-					PluginGuiTreeNode guiNode = context().manager().getGuiNode(mod)//
+					QuiltTreeNode guiNode = context().manager().getTreeNode(mod)//
 						.addChild(QuiltLoaderText.translate("gui.text.providing", provided.id()));
-					guiNode.mainIcon(QuiltLoaderGui.iconUnknownFile());
+					guiNode.icon(QuiltLoaderGui.iconUnknownFile());
 					context().addModLoadOption(new ProvidedModOption(mod, provided), guiNode);
 				}
 			}

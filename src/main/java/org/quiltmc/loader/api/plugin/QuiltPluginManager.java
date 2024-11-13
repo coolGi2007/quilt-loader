@@ -31,6 +31,8 @@ import org.jetbrains.annotations.Nullable;
 import org.quiltmc.loader.api.ModContainer;
 import org.quiltmc.loader.api.QuiltLoader;
 import org.quiltmc.loader.api.Version;
+import org.quiltmc.loader.api.gui.QuiltLoaderGui;
+import org.quiltmc.loader.api.gui.QuiltTreeNode;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiManager;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiTreeNode;
 import org.quiltmc.loader.api.plugin.solver.ModLoadOption;
@@ -251,10 +253,22 @@ public interface QuiltPluginManager {
 	// # Gui #
 	// #######
 
+	/** @return The {@link QuiltTreeNode} that will be displayed in the "Mods" tab of the plugin gui for the specific
+	 *         mod. */
+	QuiltTreeNode getTreeNode(ModLoadOption mod);
+
+	/** @return The {@link QuiltTreeNode} that is the root of the "Files" tab. */
+	QuiltTreeNode getFilesTreeNode();
+
+	/** @deprecated Use {@link #getTreeNode(ModLoadOption)} instead. */
+	@Deprecated
 	PluginGuiTreeNode getGuiNode(ModLoadOption mod);
 
+	/** @deprecated Use {@link #getFilesTreeNode()} instead. */
+	@Deprecated
 	PluginGuiTreeNode getRootGuiNode();
 
+	/** @deprecated Since {@link PluginGuiManager} is deprecated. Use {@link QuiltLoaderGui} directly instead. */
 	@Deprecated
 	PluginGuiManager getGuiManager();
 }
