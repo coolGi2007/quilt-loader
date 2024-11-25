@@ -73,7 +73,6 @@ import org.quiltmc.loader.api.plugin.NonZipException;
 import org.quiltmc.loader.api.plugin.QuiltLoaderPlugin;
 import org.quiltmc.loader.api.plugin.QuiltPluginContext;
 import org.quiltmc.loader.api.plugin.QuiltPluginManager;
-import org.quiltmc.loader.api.plugin.QuiltPluginTask;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiManager;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiTreeNode;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiTreeNode.WarningLevel;
@@ -237,18 +236,6 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 	// #######
 	// Loading
 	// #######
-
-	@Override
-	public QuiltPluginTask<Path> loadZip(Path zip) {
-		if (config.singleThreadedLoading) {
-			try {
-				return QuiltPluginTask.createFinished(loadZipNow(zip));
-			} catch (IOException | NonZipException e) {
-				return QuiltPluginTask.createFailed(e);
-			}
-		}
-		return submit(null, () -> loadZipNow(zip));
-	}
 
 	/** Kept for backwards compatibility with the first versions of RGML-Quilt, as it invoked this using reflection. */
 	@Deprecated
@@ -1356,7 +1343,7 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 						ModSolveResultImpl partialResult = getPartialSolution();
 
 						if (processTentatives(partialResult)) {
-							this.perCycleStep = step = PerCycleStep.POST_SOLVE_TENTATIVE;
+							this.perCycleStep = step = PerCycleStep.START;
 						} else {
 							this.perCycleStep = step = PerCycleStep.SUCCESS;
 							result = partialResult;
@@ -1370,10 +1357,6 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 						// so we should move on to the next cycle.
 						return null;
 					}
-				}
-				case POST_SOLVE_TENTATIVE: {
-					// TODO: Deal with tentative load options!
-					return null;
 				}
 				case SUCCESS: {
 
@@ -1585,9 +1568,29 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 			return false;
 		} else {
 
+			Map<QuiltPluginContext, List<TentativeLoadOption>> pluginsToOptions = new HashMap<>();
+
 			for (TentativeLoadOption option : tentatives) {
 				QuiltPluginContext pluginSrc = tentativeLoadOptions.get(option);
-				QuiltPluginTask<? extends LoadOption> resolution = pluginSrc.plugin().resolve(option);
+				pluginsToOptions.computeIfAbsent(pluginSrc, s -> new ArrayList<>()).add(option);
+			}
+
+			for (Map.Entry<QuiltPluginContext, List<TentativeLoadOption>> entry : pluginsToOptions.entrySet()) {
+				entry.getKey().plugin().preResolve(entry.getValue());
+			}
+
+			for (Map.Entry<QuiltPluginContext, List<TentativeLoadOption>> entry : pluginsToOptions.entrySet()) {
+				for (TentativeLoadOption option : entry.getValue()) {
+					LoadOption replacement = option.resolve();
+					if (replacement instanceof TentativeLoadOption) {
+						throw new IllegalStateException(
+							"The TentativeLoadOption " + option.getClass()
+								+ " resolved into another TentativeLoadOption " + replacement.getClass() + "!"
+						);
+					}
+					removeLoadOption((LoadOption) option);
+					addLoadOption(replacement, (BasePluginContext) entry.getKey());
+				}
 			}
 
 			return true;
@@ -1790,18 +1793,6 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 		System.gc();
 		System.gc();
 		System.gc();
-	}
-
-	// #########
-	// # Tasks #
-	// #########
-
-	<V> QuiltPluginTask<V> submit(BasePluginContext ctx, Callable<V> task) {
-		throw new AbstractMethodError("// TODO: Implement plugin tasks!");
-	}
-
-	<V> QuiltPluginTask<V> submitAfter(BasePluginContext ctx, Callable<V> task, QuiltPluginTask<?>... deps) {
-		throw new AbstractMethodError("// TODO: Implement plugin tasks!");
 	}
 
 	// ########

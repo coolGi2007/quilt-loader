@@ -14,7 +14,5 @@
  * limitations under the License.
  */
 
-/**
- * The package for 
- */
+/** Deprecated package. Plugins should use {@link org.quiltmc.loader.api.gui.QuiltLoaderGui} instead. */
 package org.quiltmc.loader.api.plugin.gui;
