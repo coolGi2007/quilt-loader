@@ -20,13 +20,13 @@ package org.quiltmc.loader.impl.launch.knot;
 import net.fabricmc.api.EnvType;
 
 import org.quiltmc.loader.api.ModContainer;
-import org.quiltmc.loader.api.QuiltLoader;
 import org.quiltmc.loader.impl.filesystem.QuiltClassPath;
+import org.quiltmc.loader.impl.filesystem.QuiltZipFileSystem;
+import org.quiltmc.loader.impl.filesystem.QuiltZipFileSystem.ZipHandling;
 import org.quiltmc.loader.impl.game.GameProvider;
 import org.quiltmc.loader.impl.util.DeferredInputStream;
 import org.quiltmc.loader.impl.util.QuiltLoaderInternal;
 import org.quiltmc.loader.impl.util.QuiltLoaderInternalType;
-import org.quiltmc.loader.impl.util.SystemProperties;
 import org.quiltmc.loader.impl.util.UrlUtil;
 import org.quiltmc.loader.impl.util.log.Log;
 import org.quiltmc.loader.impl.util.log.LogCategory;
@@ -44,7 +44,6 @@ import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 @QuiltLoaderInternal(QuiltLoaderInternalType.LEGACY_EXPOSED)
 class KnotClassLoader extends SecureClassLoader implements KnotClassLoaderInterface {
@@ -283,8 +282,18 @@ class KnotClassLoader extends SecureClassLoader implements KnotClassLoaderInterf
 		delegate.setMod(root, asUrl, mod);
 		fakeLoader.addURL(asUrl);
 		if (root.getFileName() != null && root.getFileName().toString().endsWith(".jar")) {
-			// TODO: Perhaps open it in a more efficient manor?
-			minimalLoader.addURL(asUrl);
+			Path zipRoot = null;
+			try {
+				String fsName = "classpath-" + root.getFileName().toString();
+				zipRoot = new QuiltZipFileSystem(fsName, root, "", ZipHandling.JAR).getRoot();
+			} catch (IOException io) {
+				Log.warn(LogCategory.GENERAL, "Failed to open the file " + root + ", adding it via the slow method instead!", io);
+			}
+			if (zipRoot != null) {
+				paths.addRoot(zipRoot);
+			} else {
+				minimalLoader.addURL(asUrl);
+			}
 		} else {
 			paths.addRoot(root);
 		}

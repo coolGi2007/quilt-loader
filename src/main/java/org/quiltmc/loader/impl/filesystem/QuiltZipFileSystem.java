@@ -41,6 +41,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
@@ -48,13 +50,14 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import org.jetbrains.annotations.Nullable;
-import org.quiltmc.loader.api.plugin.NonZipException;
 import org.quiltmc.loader.impl.filesystem.QuiltUnifiedEntry.QuiltUnifiedFile;
+import org.quiltmc.loader.impl.filesystem.QuiltUnifiedEntry.QuiltUnifiedFolder;
 import org.quiltmc.loader.impl.filesystem.QuiltUnifiedEntry.QuiltUnifiedFolderReadOnly;
 import org.quiltmc.loader.impl.filesystem.QuiltUnifiedEntry.QuiltUnifiedFolderWriteable;
 import org.quiltmc.loader.impl.util.DisconnectableByteChannel;
 import org.quiltmc.loader.impl.util.ExposedByteArrayOutputStream;
 import org.quiltmc.loader.impl.util.FileUtil;
+import org.quiltmc.loader.impl.util.JavaVersionUtil;
 import org.quiltmc.loader.impl.util.LimitedInputStream;
 import org.quiltmc.loader.impl.util.QuiltLoaderCleanupTasks;
 import org.quiltmc.loader.impl.util.QuiltLoaderInternal;
@@ -77,7 +80,17 @@ public class QuiltZipFileSystem extends QuiltMapFileSystem<QuiltZipFileSystem, Q
 	final WeakReference<QuiltZipFileSystem> thisRef = new WeakReference<>(this);
 	final ZipSource source;
 
+	@QuiltLoaderInternal(QuiltLoaderInternalType.NEW_INTERNAL)
+	public enum ZipHandling {
+		PLAIN,
+		JAR;
+	}
+
 	public QuiltZipFileSystem(String name, Path zipFrom, String zipPathPrefix) throws IOException {
+		this(name, zipFrom, zipPathPrefix, ZipHandling.PLAIN);
+	}
+
+	public QuiltZipFileSystem(String name, Path zipFrom, String zipPathPrefix, ZipHandling zip) throws IOException {
 		super(QuiltZipFileSystem.class, QuiltZipPath.class, name, true);
 
 		if (DEBUG_TEST_READING) {
@@ -121,6 +134,10 @@ public class QuiltZipFileSystem extends QuiltMapFileSystem<QuiltZipFileSystem, Q
 
 		source.build();
 
+		if (zip == ZipHandling.JAR) {
+			setupMultiReleaseJar();
+		}
+
 		switchToReadOnly();
 
 		QuiltZipFileSystemProvider.PROVIDER.register(this);
@@ -131,6 +148,72 @@ public class QuiltZipFileSystem extends QuiltMapFileSystem<QuiltZipFileSystem, Q
 	@Override
 	protected boolean startWithConcurrentMap() {
 		return false;
+	}
+
+
+	private void setupMultiReleaseJar() throws IOException {
+
+		int javaVersion = JavaVersionUtil.getJavaVersion();
+		if (javaVersion < 9) {
+			return;
+		}
+
+		Path metaInf = getRoot().resolve("META-INF");
+		if (!exists(metaInf)) {
+			return;
+		}
+		Path versionsPath = metaInf.resolve("versions");
+		if (!exists(versionsPath)) {
+			return;
+		}
+		Path manifestPath = metaInf.resolve("MANIFEST.MF");
+		if (!exists(manifestPath)) {
+			return;
+		}
+
+		try (InputStream manifestStream = Files.newInputStream(manifestPath)) {
+			Manifest manifest = new Manifest(manifestStream);
+			String multiReleaseValue = manifest.getMainAttributes().getValue("Multi-Release");
+			if (!"true".equalsIgnoreCase(multiReleaseValue)) {
+				return;
+			}
+		}
+
+		for (int version = 9; version <= javaVersion; version++) {
+			Path exactVersionPath = versionsPath.resolve(Integer.toString(version));
+			if (!exists(exactVersionPath)) {
+				continue;
+			}
+
+			if (!isDirectory(exactVersionPath)) {
+				continue;
+			}
+
+			copyMultiReleaseEntry(exactVersionPath, root);
+		}
+	}
+
+	private void copyMultiReleaseEntry(Path from, QuiltZipPath to) throws IOException {
+		QuiltUnifiedEntry entry = getEntry(from);
+		if (entry instanceof QuiltUnifiedFolder) {
+			QuiltUnifiedFolder folder = (QuiltUnifiedFolder) entry;
+			String folderName = folder.path.name;
+			if (to == root && "META-INF".equals(folderName)) {
+				return;
+			}
+
+			if (!isDirectory(to)) {
+				addEntryRequiringParent(new QuiltUnifiedFolderWriteable(to));
+			}
+
+			for (Path child : folder.getChildren()) {
+				copyMultiReleaseEntry(child, to.resolve(child.getFileName()));
+			}
+		} else {
+			QuiltUnifiedFile file = (QuiltUnifiedFile) entry;
+			removeEntry(to, false);
+			addEntryRequiringParent(file.createMovedTo(to));
+		}
 	}
 
 	private void initializeFromZip(InputStream fileStream, String zipPathPrefix) throws IOException {
