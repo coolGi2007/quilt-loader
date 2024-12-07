@@ -1,0 +1,9 @@
+Bug Fixes:
+
+- Fixed most minecraft libraries not being added to Knot's classpath (allowing them to be modified via mixin or overriden via mods)
+    - This should fix lots of classloader compatibility issues with various mods.
+    - (TODO list them!)
+- Fixed server libraries not being identified properly with newer quilt-server-launcher.
+- Fixed mod files being searched in preference to minecraft library files.
+    - This fixes a bug with Valkyrien-Skies-2 stopping log messages.
+
