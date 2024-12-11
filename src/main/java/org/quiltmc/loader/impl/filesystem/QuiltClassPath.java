@@ -834,9 +834,17 @@ public class QuiltClassPath<D> {
 					final Path toAdd;
 					if (hashPath instanceof ExtraDataPath) {
 						ExtraDataPath dataPath = (ExtraDataPath) hashPath;
-						extraData = dataPath.data;
+						if (hashPath == sub2) {
+							// Originally an ExtraDataPath, so re-wrap it
+							toAdd = dataPath.path;
+							extraData = dataPath.data;
+						} else {
+							// Originally an OverlappingPath, so only modify the hash path
+							// and put the original OverlappingPath
+							toAdd = sub2;
+							extraData = null;
+						}
 						hashPath = dataPath.path;
-						toAdd = hashPath;
 					} else {
 						extraData = null;
 						toAdd = sub2;
