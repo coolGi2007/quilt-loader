@@ -30,6 +30,7 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.NotLinkException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -50,10 +51,12 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import org.jetbrains.annotations.Nullable;
+import org.quiltmc.loader.api.ExtendedFileSystem;
 import org.quiltmc.loader.impl.filesystem.QuiltUnifiedEntry.QuiltUnifiedFile;
 import org.quiltmc.loader.impl.filesystem.QuiltUnifiedEntry.QuiltUnifiedFolder;
 import org.quiltmc.loader.impl.filesystem.QuiltUnifiedEntry.QuiltUnifiedFolderReadOnly;
 import org.quiltmc.loader.impl.filesystem.QuiltUnifiedEntry.QuiltUnifiedFolderWriteable;
+import org.quiltmc.loader.impl.filesystem.QuiltUnifiedEntry.QuiltUnifiedMountedFile;
 import org.quiltmc.loader.impl.util.DisconnectableByteChannel;
 import org.quiltmc.loader.impl.util.ExposedByteArrayOutputStream;
 import org.quiltmc.loader.impl.util.FileUtil;
@@ -73,7 +76,7 @@ import org.quiltmc.loader.impl.util.QuiltLoaderInternalType;
  * this if it's not read-only, or the "compress" constructor argument is false). */
 @QuiltLoaderInternal(QuiltLoaderInternalType.NEW_INTERNAL)
 public class QuiltZipFileSystem extends QuiltMapFileSystem<QuiltZipFileSystem, QuiltZipPath>
-	implements ReadOnlyFileSystem {
+	implements ReadOnlyFileSystem, ExtendedFileSystem {
 
 	static final boolean DEBUG_TEST_READING = false;
 
@@ -189,11 +192,11 @@ public class QuiltZipFileSystem extends QuiltMapFileSystem<QuiltZipFileSystem, Q
 				continue;
 			}
 
-			copyMultiReleaseEntry(exactVersionPath, root);
+			linkMultiReleaseEntry(exactVersionPath, root);
 		}
 	}
 
-	private void copyMultiReleaseEntry(Path from, QuiltZipPath to) throws IOException {
+	private void linkMultiReleaseEntry(Path from, QuiltZipPath to) throws IOException {
 		QuiltUnifiedEntry entry = getEntry(from);
 		if (entry instanceof QuiltUnifiedFolder) {
 			QuiltUnifiedFolder folder = (QuiltUnifiedFolder) entry;
@@ -207,12 +210,11 @@ public class QuiltZipFileSystem extends QuiltMapFileSystem<QuiltZipFileSystem, Q
 			}
 
 			for (Path child : folder.getChildren()) {
-				copyMultiReleaseEntry(child, to.resolve(child.getFileName()));
+				linkMultiReleaseEntry(child, to.resolve(child.getFileName()));
 			}
 		} else {
-			QuiltUnifiedFile file = (QuiltUnifiedFile) entry;
 			removeEntry(to, false);
-			addEntryRequiringParent(file.createMovedTo(to));
+			addEntryRequiringParent(new QuiltUnifiedMountedFile(to, from, true));
 		}
 	}
 
@@ -308,6 +310,11 @@ public class QuiltZipFileSystem extends QuiltMapFileSystem<QuiltZipFileSystem, Q
 		} else if (entryFrom instanceof QuiltZipFile) {
 			QuiltZipFile from = (QuiltZipFile) entryFrom;
 			addEntryWithoutParentsUnsafe(new QuiltZipFile(dst, source, from.offset, from.compressedSize, from.uncompressedSize, from.isCompressed));
+		} else if (entryFrom instanceof QuiltUnifiedMountedFile) {
+			// Used for Multi-Release jars
+			// This isn't ideal, as it will continue to point to the original file system
+			QuiltUnifiedMountedFile from = (QuiltUnifiedMountedFile) entryFrom;
+			addEntryWithoutParentsUnsafe(new QuiltUnifiedMountedFile(dst, from.to, true));
 		} else {
 			// This isn't meant to happen, it means something got constructed badly
 			throw new IllegalArgumentException("Unknown source entry " + entryFrom);
@@ -355,6 +362,27 @@ public class QuiltZipFileSystem extends QuiltMapFileSystem<QuiltZipFileSystem, Q
 	@Override
 	public boolean isExecutable(Path path) {
 		return exists(path);
+	}
+
+	// ExtendedFileSystem
+
+	// These are supported due to multi-release jars
+
+	@Override
+	public boolean isMountedFile(Path file) {
+		return getEntry(file) instanceof QuiltUnifiedMountedFile;
+	}
+
+	// Copy-on-write is unsupported
+
+	@Override
+	public Path readMountTarget(Path file) throws IOException {
+		QuiltUnifiedEntry entry = getEntry(file);
+		if (entry instanceof QuiltUnifiedMountedFile) {
+			return ((QuiltUnifiedMountedFile) entry).to;
+		} else {
+			throw new NotLinkException(file.toString() + " is not a mounted file!");
+		}
 	}
 
 	// Custom classes to grab the real offset while reading the zip

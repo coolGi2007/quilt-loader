@@ -1,6 +1,6 @@
 Bug Fixes:
 
-- Fixed most minecraft libraries not being added to Knot's classpath (allowing them to be modified via mixin or overriden via mods)
+- Fixed most minecraft libraries not being added to Knot's classpath (allowing them to be modified via mixin or overridden via mods)
     - This should fix lots of classloader compatibility issues with various mods.
     - (TODO list them!)
 - Fixed server libraries not being identified properly with newer quilt-server-launcher.
