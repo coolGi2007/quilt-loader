@@ -31,6 +31,8 @@ import org.jetbrains.annotations.Nullable;
 import org.quiltmc.loader.api.ModContainer;
 import org.quiltmc.loader.api.QuiltLoader;
 import org.quiltmc.loader.api.Version;
+import org.quiltmc.loader.api.gui.QuiltLoaderGui;
+import org.quiltmc.loader.api.gui.QuiltTreeNode;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiManager;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiTreeNode;
 import org.quiltmc.loader.api.plugin.solver.ModLoadOption;
@@ -52,25 +54,6 @@ public interface QuiltPluginManager {
 	// Loading
 	// #######
 
-	/** Returns a task which will load the specified zip file and returns a path to the root of it's contents.
-	 * <p>
-	 * How the given zip is loaded depends on loaders config settings - in particular the zip could be extracted to a
-	 * temporary folder on the same filesystem as the original zip.
-	 * <p>
-	 * WARNING: if this method allocates a new {@link FileSystem} then that will be closed, <em>unless</em> at least one
-	 * of the {@link QuiltLoaderPlugin}s {@link QuiltPluginContext#lockZip(Path) locks} it, or if a chosen mod is loaded
-	 * from it.
-	 * <p>
-	 * The returned task may throw the following exceptions:
-	 * <ul>
-	 * <li>{@link IOException} if something went wrong while loading the file.</li>
-	 * <li>{@link NonZipException} if {@link FileSystems#newFileSystem(Path, ClassLoader)} throws a
-	 * {@link ProviderNotFoundException}.</li>
-	 * </ul>
-	 * 
-	 * @see #loadZipNow(Path) */
-	QuiltPluginTask<Path> loadZip(Path zip);
-
 	/** Loads the specified zip file and returns a path to the root of it's contents.
 	 * <p>
 	 * How the given zip is loaded depends on loaders config settings - in particular the zip could be extracted to a
@@ -83,8 +66,25 @@ public interface QuiltPluginManager {
 	 * @throws IOException if something went wrong while loading the file.
 	 * @throws NonZipException if {@link FileSystems#newFileSystem(Path, ClassLoader)} throws a
 	 *             {@link ProviderNotFoundException}.
-	 * @see #loadZip(Path) */
+	 * @see #loadJarNow(Path) */
 	Path loadZipNow(Path zip) throws IOException, NonZipException;
+
+	/** Loads the specified zip file as a jar file and returns a path to the root of it's contents. Unlike
+	 * {@link #loadZipNow(Path)} this has special handling for multi-release jars, and this will expose the correct
+	 * multi-release files in the root of the returned zips filesystem. This may throw an exception if the manifest is
+	 * malformed. This does not check signatures, index files, or anything else.
+	 * <p>
+	 * How the given zip is loaded depends on loaders config settings - in particular the zip could be extracted to a
+	 * temporary folder on the same filesystem as the original zip.
+	 * <p>
+	 * WARNING: if this method allocates a new {@link FileSystem} then that will be closed, <em>unless</em> at least one
+	 * of the {@link QuiltLoaderPlugin}s {@link QuiltPluginContext#lockZip(Path) locks} it, or if a chosen mod is loaded
+	 * from it.
+	 * 
+	 * @throws IOException if something went wrong while loading the file.
+	 * @throws NonZipException if {@link FileSystems#newFileSystem(Path, ClassLoader)} throws a
+	 *             {@link ProviderNotFoundException}. */
+	Path loadJarNow(Path zip) throws IOException, NonZipException;
 
 	/** Creates a new in-memory read-write file system. This can be used for mods that aren't loaded from zips.
 	 *
@@ -251,10 +251,22 @@ public interface QuiltPluginManager {
 	// # Gui #
 	// #######
 
+	/** @return The {@link QuiltTreeNode} that will be displayed in the "Mods" tab of the plugin gui for the specific
+	 *         mod. */
+	QuiltTreeNode getTreeNode(ModLoadOption mod);
+
+	/** @return The {@link QuiltTreeNode} that is the root of the "Files" tab. */
+	QuiltTreeNode getFilesTreeNode();
+
+	/** @deprecated Use {@link #getTreeNode(ModLoadOption)} instead. */
+	@Deprecated
 	PluginGuiTreeNode getGuiNode(ModLoadOption mod);
 
+	/** @deprecated Use {@link #getFilesTreeNode()} instead. */
+	@Deprecated
 	PluginGuiTreeNode getRootGuiNode();
 
+	/** @deprecated Since {@link PluginGuiManager} is deprecated. Use {@link QuiltLoaderGui} directly instead. */
 	@Deprecated
 	PluginGuiManager getGuiManager();
 }

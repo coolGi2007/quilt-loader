@@ -73,7 +73,6 @@ import org.quiltmc.loader.api.plugin.NonZipException;
 import org.quiltmc.loader.api.plugin.QuiltLoaderPlugin;
 import org.quiltmc.loader.api.plugin.QuiltPluginContext;
 import org.quiltmc.loader.api.plugin.QuiltPluginManager;
-import org.quiltmc.loader.api.plugin.QuiltPluginTask;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiManager;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiTreeNode;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiTreeNode.WarningLevel;
@@ -95,6 +94,7 @@ import org.quiltmc.loader.impl.filesystem.QuiltJoinedFileSystem;
 import org.quiltmc.loader.impl.filesystem.QuiltJoinedPath;
 import org.quiltmc.loader.impl.filesystem.QuiltMemoryFileSystem;
 import org.quiltmc.loader.impl.filesystem.QuiltZipFileSystem;
+import org.quiltmc.loader.impl.filesystem.QuiltZipFileSystem.ZipHandling;
 import org.quiltmc.loader.impl.filesystem.QuiltZipPath;
 import org.quiltmc.loader.impl.filesystem.ZeroByteFileException;
 import org.quiltmc.loader.impl.game.GameProvider;
@@ -182,7 +182,6 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 
 	final Queue<MainThreadTask> mainThreadTasks;
 
-	public final GuiManagerImpl guiManager = GuiManagerImpl.MANAGER;
 	/** The root tree node for the "files" tab. */
 	public final QuiltStatusNode guiFileRoot = QuiltLoaderGuiImpl.createTreeNode();
 	public final QuiltStatusNode guiModsRoot =  QuiltLoaderGuiImpl.createTreeNode();
@@ -239,18 +238,6 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 	// Loading
 	// #######
 
-	@Override
-	public QuiltPluginTask<Path> loadZip(Path zip) {
-		if (config.singleThreadedLoading) {
-			try {
-				return QuiltPluginTask.createFinished(loadZipNow(zip));
-			} catch (IOException | NonZipException e) {
-				return QuiltPluginTask.createFailed(e);
-			}
-		}
-		return submit(null, () -> loadZipNow(zip));
-	}
-
 	/** Kept for backwards compatibility with the first versions of RGML-Quilt, as it invoked this using reflection. */
 	@Deprecated
 	private Path loadZip0(Path zip) throws IOException, NonZipException {
@@ -259,9 +246,18 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 
 	@Override
 	public Path loadZipNow(Path zip) throws IOException, NonZipException {
+		return loadZipLikeNow(zip, ZipHandling.PLAIN);
+	}
+
+	@Override
+	public Path loadJarNow(Path zip) throws IOException, NonZipException {
+		return loadZipLikeNow(zip, ZipHandling.JAR);
+	}
+
+	private Path loadZipLikeNow(Path zip, ZipHandling handling) throws IOException, NonZipException {
 		String name = zip.getFileName().toString();
 		try {
-			QuiltZipPath qRoot = new QuiltZipFileSystem(name, zip, "").getRoot();
+			QuiltZipPath qRoot = new QuiltZipFileSystem(name, zip, "", handling).getRoot();
 			pathParents.put(qRoot, zip);
 			return qRoot;
 		} catch (IOException e) {
@@ -270,7 +266,14 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 					throw e;
 				}
 				// Something probably went wrong while trying to load them as zips
-				throw new IOException("Failed to read " + zip + " as a zip file: " + e.getMessage(), e);
+				StringBuilder msg = new StringBuilder();
+				msg.append("Failed to read ");
+				msg.append(zip);
+				msg.append(" as a ");
+				msg.append(handling == ZipHandling.JAR ? "jar": "zip");
+				msg.append(" file: ");
+				msg.append(e.getMessage());
+				throw new IOException(msg.toString(), e);
 			} else {
 				throw new NonZipException(e);
 			}
@@ -688,18 +691,31 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 	// #######
 
 	@Override
+	public QuiltTreeNode getTreeNode(ModLoadOption mod) {
+		return modGuiNodes.get(mod);
+	}
+
+	@Override
+	@Deprecated
 	public PluginGuiTreeNode getGuiNode(ModLoadOption mod) {
 		return modGuiNodes.get(mod);
 	}
 
 	@Override
+	public QuiltTreeNode getFilesTreeNode() {
+		return guiFileRoot;
+	}
+
+	@Override
+	@Deprecated
 	public PluginGuiTreeNode getRootGuiNode() {
 		return guiFileRoot;
 	}
 
 	@Override
+	@Deprecated
 	public PluginGuiManager getGuiManager() {
-		return guiManager;
+		return GuiManagerImpl.MANAGER;
 	}
 
 	public QuiltDisplayedError reportError(BasePluginContext reporter, QuiltLoaderText title) {
@@ -1344,7 +1360,7 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 						ModSolveResultImpl partialResult = getPartialSolution();
 
 						if (processTentatives(partialResult)) {
-							this.perCycleStep = step = PerCycleStep.POST_SOLVE_TENTATIVE;
+							this.perCycleStep = step = PerCycleStep.START;
 						} else {
 							this.perCycleStep = step = PerCycleStep.SUCCESS;
 							result = partialResult;
@@ -1358,10 +1374,6 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 						// so we should move on to the next cycle.
 						return null;
 					}
-				}
-				case POST_SOLVE_TENTATIVE: {
-					// TODO: Deal with tentative load options!
-					return null;
 				}
 				case SUCCESS: {
 
@@ -1573,9 +1585,29 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 			return false;
 		} else {
 
+			Map<QuiltPluginContext, List<TentativeLoadOption>> pluginsToOptions = new HashMap<>();
+
 			for (TentativeLoadOption option : tentatives) {
 				QuiltPluginContext pluginSrc = tentativeLoadOptions.get(option);
-				QuiltPluginTask<? extends LoadOption> resolution = pluginSrc.plugin().resolve(option);
+				pluginsToOptions.computeIfAbsent(pluginSrc, s -> new ArrayList<>()).add(option);
+			}
+
+			for (Map.Entry<QuiltPluginContext, List<TentativeLoadOption>> entry : pluginsToOptions.entrySet()) {
+				entry.getKey().plugin().preResolve(entry.getValue());
+			}
+
+			for (Map.Entry<QuiltPluginContext, List<TentativeLoadOption>> entry : pluginsToOptions.entrySet()) {
+				for (TentativeLoadOption option : entry.getValue()) {
+					LoadOption replacement = option.resolve();
+					if (replacement instanceof TentativeLoadOption) {
+						throw new IllegalStateException(
+							"The TentativeLoadOption " + option.getClass()
+								+ " resolved into another TentativeLoadOption " + replacement.getClass() + "!"
+						);
+					}
+					removeLoadOption((LoadOption) option);
+					addLoadOption(replacement, (BasePluginContext) entry.getKey());
+				}
 			}
 
 			return true;
@@ -1778,18 +1810,6 @@ public class QuiltPluginManagerImpl implements QuiltPluginManager {
 		System.gc();
 		System.gc();
 		System.gc();
-	}
-
-	// #########
-	// # Tasks #
-	// #########
-
-	<V> QuiltPluginTask<V> submit(BasePluginContext ctx, Callable<V> task) {
-		throw new AbstractMethodError("// TODO: Implement plugin tasks!");
-	}
-
-	<V> QuiltPluginTask<V> submitAfter(BasePluginContext ctx, Callable<V> task, QuiltPluginTask<?>... deps) {
-		throw new AbstractMethodError("// TODO: Implement plugin tasks!");
 	}
 
 	// ########

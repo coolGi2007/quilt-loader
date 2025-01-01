@@ -131,7 +131,7 @@ public final class QuiltLoaderImpl {
 
 	public static final int ASM_VERSION = Opcodes.ASM9;
 
-	public static final String VERSION = "0.26.4";
+	public static final String VERSION = "0.28.0-beta.4";
 	public static final String MOD_ID = "quilt_loader";
 	public static final String DEFAULT_MODS_DIR = "mods";
 	public static final String DEFAULT_CACHE_DIR = ".cache";
@@ -484,10 +484,12 @@ public final class QuiltLoaderImpl {
 				// Versions before 1.17.1 don't work very well if they aren't at the root of their zip file
 				return true;
 			}
-			if (modIds.contains("fabric-resource-loader-v0")) {
-				// Fabric API turns minecraft into a resource pack to load from instead of using the classpath,
-				// so it also doesn't work very well
-				return true;
+			if (modIds.contains("fabric-resource-loader-v0") && !modIds.contains("quilted_fabric_resource_loader_v0")) {
+				if (Version.of("1.19.3").compareTo(mod.version()) > 0) {
+					// Fabric API turns minecraft into a resource pack to load from instead of using the classpath,
+					// so it also doesn't work very well
+					return true;
+				}
 			}
 			if (modIds.contains("polymer")) {
 				if (Version.of("1.19.3").compareTo(mod.version()) >= 0) {
@@ -577,6 +579,8 @@ public final class QuiltLoaderImpl {
 		} else if (!Boolean.getBoolean(SystemProperties.DISABLE_PRELOAD_TRANSFORM_CACHE)) {
 			FilePreloadHelper.preLoad(modJarFile);
 		}
+
+		copiedToJarMods.put(modOption.id(), modJarFile.toFile());
 
 		try {
 			FileSystem fs = FileSystems.newFileSystem(modJarFile, (ClassLoader) null);

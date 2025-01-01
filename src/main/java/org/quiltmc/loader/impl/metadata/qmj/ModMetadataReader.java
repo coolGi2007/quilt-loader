@@ -24,9 +24,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.jetbrains.annotations.Nullable;
-import org.quiltmc.json5.JsonReader;
-import org.quiltmc.json5.JsonToken;
-import org.quiltmc.json5.exception.ParseException;
+import org.quiltmc.parsers.json.JsonFormat;
+import org.quiltmc.parsers.json.JsonReader;
+import org.quiltmc.parsers.json.JsonToken;
+import org.quiltmc.parsers.json.ParseException;
 import org.quiltmc.loader.api.LoaderValue;
 import org.quiltmc.loader.api.plugin.QuiltPluginManager;
 import org.quiltmc.loader.api.plugin.gui.PluginGuiTreeNode;
@@ -71,7 +72,14 @@ public final class ModMetadataReader {
 	public static InternalModMetadata read(InputStream json, Path path, QuiltPluginManager manager, PluginGuiTreeNode warningNode) throws IOException, ParseException {
 		JsonLoaderValue value;
 
-		try (JsonReader reader = JsonReader.json(new InputStreamReader(json, StandardCharsets.UTF_8))) {
+		final JsonFormat format;
+		if (path.getFileName().toString().endsWith(".json5")) {
+			format = JsonFormat.JSON5;
+		} else {
+			format = JsonFormat.JSON;
+		}
+
+		try (JsonReader reader = JsonReader.create(new InputStreamReader(json, StandardCharsets.UTF_8), format)) {
 			// Root must be an object
 			if (reader.peek() != JsonToken.BEGIN_OBJECT) {
 				throw new ParseException(reader, "A quilt.mod.json must have an object at the root");

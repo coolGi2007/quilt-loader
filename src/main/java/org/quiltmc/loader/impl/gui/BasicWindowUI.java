@@ -907,10 +907,11 @@ class BasicWindowUI {
 				if (map.isEmpty()) {
 					for (byte[] src : srcImages) {
 						BufferedImage sub = ImageIO.read(new ByteArrayInputStream(src));
-						map.put(sub.getWidth(), sub);
+						if (sub != null) {
+							map.put(sub.getWidth(), sub);
+						}
 					}
 				}
-
 
 				Entry<Integer, BufferedImage> bestSource = map.ceilingEntry(scale);
 				if (bestSource == null) {

@@ -163,7 +163,7 @@ public class MinecraftGameProvider implements GameProvider {
 			});
 		}
 		List<Path> paths = new ArrayList<>(gameJars);
-		paths.addAll(miscGameLibraries);
+//		paths.addAll(miscGameLibraries);
 		return Collections.singletonList(new BuiltinMod(paths, metadata.build()));
 	}
 
@@ -289,11 +289,7 @@ public class MinecraftGameProvider implements GameProvider {
 				}
 			}
 
-			for (Path path : classifier.getUnmatchedOrigins()) {
-				if (!classpath.contains(path)) {
-					miscGameLibraries.add(path);
-				}
-			}
+			miscGameLibraries.addAll(classifier.getUnmatchedOrigins());
 		} catch (IOException e) {
 			throw ExceptionUtil.wrap(e);
 		}

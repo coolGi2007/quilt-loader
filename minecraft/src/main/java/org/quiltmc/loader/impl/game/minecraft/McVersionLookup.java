@@ -35,8 +35,8 @@ import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
-import org.quiltmc.json5.JsonReader;
-import org.quiltmc.json5.JsonToken;
+import org.quiltmc.parsers.json.JsonReader;
+import org.quiltmc.parsers.json.JsonToken;
 import org.quiltmc.loader.api.Version;
 import org.quiltmc.loader.impl.QuiltLoaderImpl;
 import org.quiltmc.loader.impl.util.ExceptionUtil;
@@ -52,7 +52,7 @@ public final class McVersionLookup {
 			+ "[a-c]\\d\\.\\d+(\\.\\d+)?[a-z]?(_\\d+)?[a-z]?|" // alpha/beta a1.2.3_45
 			+ "(Alpha|Beta) v?\\d+\\.\\d+(\\.\\d+)?[a-z]?(_\\d+)?[a-z]?|" // long alpha/beta names: Alpha v1.2.3_45
 			+ "Inf?dev (0\\.31 )?\\d+(-\\d+)?|" // long indev/infdev names: Infdev 12345678-9
-			+ "(rd|inf)-\\d+|" // early rd-123, inf-123
+			+ "(rd|inf?)-\\d+|" // early rd-123, in-20100223, inf-123
 			+ "1\\.RV-Pre1|3D Shareware v1\\.34|23w13a_or_b|24w14potato|" // odd exceptions
 			+ "(.*[Ee]xperimental [Ss]napshot )(\\d+)" // Experimental versions.
 			);
@@ -63,7 +63,7 @@ public final class McVersionLookup {
 	private static final Pattern EXPERIMENTAL_PATTERN = Pattern.compile("(?:.*[Ee]xperimental [Ss]napshot )(\\d+)");
 	private static final Pattern BETA_PATTERN = Pattern.compile("(?:b|Beta v?)1\\.(\\d+(\\.\\d+)?[a-z]?(_\\d+)?[a-z]?)");
 	private static final Pattern ALPHA_PATTERN = Pattern.compile("(?:a|Alpha v?)[01]\\.(\\d+(\\.\\d+)?[a-z]?(_\\d+)?[a-z]?)");
-	private static final Pattern INDEV_PATTERN = Pattern.compile("(?:inf-|Inf?dev )(?:0\\.31 )?(\\d+(-\\d+)?)");
+	private static final Pattern INDEV_PATTERN = Pattern.compile("(?:inf?-|Inf?dev )(?:0\\.31 )?(\\d+(-\\d+)?)");
 	private static final String STRING_DESC = "Ljava/lang/String;";
 
 	public static McVersion getVersion(List<Path> gameJars, String entrypointClass, String versionName) {
@@ -284,7 +284,9 @@ public final class McVersionLookup {
 			int year = Integer.parseInt(matcher.group(1));
 			int week = Integer.parseInt(matcher.group(2));
 
-			if (year >= 24 && week >= 33) {
+			if (year == 24 && week >= 44 || year >= 25) {
+				return "1.21.4";
+			} else if (year == 24 && week >= 33 && week <= 40) {
 				return "1.21.2";
 			} else if (year == 24 && week >= 18 && week <= 21) {
 				return "1.21";

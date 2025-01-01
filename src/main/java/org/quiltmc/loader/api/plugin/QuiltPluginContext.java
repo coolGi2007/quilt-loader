@@ -98,43 +98,6 @@ public interface QuiltPluginContext {
 	 * stacktrace to the crash report. */
 	void haltLoading();
 
-	// ##############
-	// # Scheduling #
-	// ##############
-
-	/** Submits a task to be completed after plugin resolution, but before the current cycle ends. The task may be
-	 * executed on a different thread, depending on loaders config options.
-	 * <p>
-	 * This should only be called by {@link QuiltLoaderPlugin#resolve(TentativeLoadOption)},
-	 * {@link QuiltLoaderPlugin#finish(org.quiltmc.loader.api.plugin.solver.ModSolveResult)}, or by any tasks that are
-	 * passed to this function during their execution.
-	 * 
-	 * @return A {@link QuiltPluginTask} which will contain the result of the task, or the failure state if something
-	 *         went wrong. */
-	<V> QuiltPluginTask<V> submit(Callable<V> task);
-
-	/** Submits a task to be completed after plugin resolution, and additionally after the given tasks have completed,
-	 * but before the current cycle ends. The task may be executed on a different thread, depending on loaders config
-	 * options. Note that the task will still be executed, <em>even if the dependencies failed.</em> This is to allow
-	 * the task to handle errors directly.
-	 * 
-	 * @param deps The tasks that must complete before the given task can be executed.
-	 * @return A {@link QuiltPluginTask} which will contain the result of the task, or the failure state if something
-	 *         went wrong. */
-	<V> QuiltPluginTask<V> submitAfter(Callable<V> task, QuiltPluginTask<?>... deps);
-
-	// #######
-	// # Gui #
-	// #######
-
-	/** Used to ask the real user of something. Normally this will append something to the existing gui rather than
-	 * opening a new gui each time this is called.
-	 * <p>
-	 * TODO: Create all gui stuff! for now this just throws an {@link AbstractMethodError} */
-	default <V> QuiltPluginTask<V> addGuiRequest() {
-		throw new AbstractMethodError("// TODO: Add gui support!");
-	}
-
 	// ###########
 	// # Solving #
 	// ###########

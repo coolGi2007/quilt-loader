@@ -19,6 +19,7 @@ package org.quiltmc.loader.impl.game;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,11 +29,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
@@ -44,6 +47,7 @@ import net.fabricmc.api.EnvType;
 import org.quiltmc.loader.impl.util.LoaderUtil;
 import org.quiltmc.loader.impl.util.ManifestUtil;
 import org.quiltmc.loader.impl.util.SystemProperties;
+import org.quiltmc.loader.impl.util.UrlConversionException;
 import org.quiltmc.loader.impl.util.UrlUtil;
 import org.quiltmc.loader.impl.util.log.Log;
 import org.quiltmc.loader.impl.util.log.LogCategory;
@@ -101,8 +105,57 @@ public final class LibClassifier<L extends Enum<L> & LibClassifier.LibraryType> 
 		for (LoaderLibrary lib : LoaderLibrary.values()) {
 			if (!lib.isApplicable(env, junitRun)) continue;
 
-			if (lib.path != null) {
-				Path path = LoaderUtil.normalizeExistingPath(lib.path);
+			Path path = lib.path;
+
+			if (path == null && lib == LoaderLibrary.SERVER_LAUNCH) {
+
+				// Newer versions of the server launcher only contain a manifest file
+				// So we have to search for a manifest file which contains a Main-Class entry
+				// with a value of "org.quiltmc.loader.impl.launch.server.QuiltServerLauncher"
+				// or a Class-Path which references loader itself
+
+				if (DEBUG) {
+					Log.info(LogCategory.LIB_CLASSIFICATION, "Starting Quilt Server Launcher classification checking...");
+				}
+
+				Enumeration<URL> manifests = LibClassifier.class.getClassLoader().getResources("META-INF/MANIFEST.MF");
+				while (manifests.hasMoreElements()) {
+					URL url = manifests.nextElement();
+					try (InputStream is = url.openStream()) {
+						Manifest manifest = new Manifest(is);
+						Attributes attrs = manifest.getMainAttributes();
+						String mainClass = attrs.getValue(Attributes.Name.MAIN_CLASS);
+						String classPath = attrs.getValue(Attributes.Name.CLASS_PATH);
+						if (mainClass == null || classPath == null) {
+							continue;
+						}
+
+						Path source = LoaderUtil.normalizeExistingPath(UrlUtil.getCodeSource(url, "META-INF/MANIFEST.MF"));
+						if (DEBUG) {
+							Log.info(LogCategory.LIB_CLASSIFICATION, "Manifest for " + source + ": " + mainClass + "; " + classPath);
+						}
+
+						Path loaderSource = UrlUtil.LOADER_CODE_SOURCE;
+						Path relative = source.getParent().relativize(loaderSource);
+						if (DEBUG) {
+							Log.info(LogCategory.LIB_CLASSIFICATION, "  loader relative = " + relative);
+						}
+
+						String expectedStr = relative.toString().replace(relative.getFileSystem().getSeparator(), "/");
+
+						if (classPath.contains(expectedStr)) {
+							path = source;
+							break;
+						}
+
+					} catch (UrlConversionException e) {
+						throw new RuntimeException(e);
+					}
+				}
+			}
+
+			if (path != null) {
+				path = LoaderUtil.normalizeExistingPath(path);
 				systemLibraries.add(path);
 
 				if (DEBUG) sb.append(String.format("✅ %s %s%n", lib.name(), path));

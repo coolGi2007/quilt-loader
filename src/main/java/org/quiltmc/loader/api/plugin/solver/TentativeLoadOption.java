@@ -16,14 +16,20 @@
 
 package org.quiltmc.loader.api.plugin.solver;
 
+import org.quiltmc.loader.api.plugin.QuiltLoaderPlugin;
 import org.quiltmc.loader.impl.util.QuiltLoaderInternal;
 import org.quiltmc.loader.impl.util.QuiltLoaderInternalType;
 
 /** {@link LoadOption}s can implement this if they must be processed before they can be used, if they are selected.
  * <p>
- * Unselected {@link TentativeLoadOption}s are left alone at the end of the cycle, and are not resolved.
- */
+ * Unselected {@link TentativeLoadOption}s are left alone at the end of the cycle, and are not resolved. */
 @QuiltLoaderInternal(QuiltLoaderInternalType.PLUGIN_API)
 public interface TentativeLoadOption {
 
+	/** Resolves this to a real {@link LoadOption}. This is only invoked after
+	 * {@link QuiltLoaderPlugin#preResolve(java.util.List)} has already been called.
+	 * 
+	 * @return a new {@link LoadOption} which can be loaded as-is. (It must not be another
+	 *         {@link TentativeLoadOption}) */
+	LoadOption resolve();
 }

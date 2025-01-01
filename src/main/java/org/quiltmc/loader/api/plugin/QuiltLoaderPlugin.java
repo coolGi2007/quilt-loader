@@ -163,20 +163,11 @@ public interface QuiltLoaderPlugin {
 	// Solving
 	// #######
 
-	/** Resolves a single {@link TentativeLoadOption} that was added via
-	 * {@link QuiltPluginContext#addTentativeOption(LoadOption)}. This is only called if the option was selected by the
-	 * solver - unselected options are not resolved.
-	 * <p>
-	 * Long-running operations should use {@link QuiltPluginContext#submit(java.util.concurrent.Callable)} to perform
-	 * those tasks in the future, and possibly on different threads. Operations that require use of the gui should use
-	 * {@link QuiltPluginContext#addGuiRequest()} instead, and call submit after that has been accepted or denied.
-	 * 
-	 * @return A {@link QuiltPluginTask} containing (or will contain) the {@link LoadOption} that will replace the
-	 *         {@link TentativeLoadOption} next cycle. */
-	default QuiltPluginTask<? extends LoadOption> resolve(TentativeLoadOption from) {
-		throw new IllegalStateException(
-			getClass() + " has added a TentativeLoadOption (" + from.getClass() + ") but can't resolve it!"
-		);
+	/** Called once before {@link TentativeLoadOption}s are resolved. This is intended to allow plugins to queue
+	 * downloads, or begin other long-running activities that would benefit from running simultaneously. This is only
+	 * called with load options are selected by the solver - unselected options are excluded from this list. */
+	default void preResolve(List<TentativeLoadOption> optionsToResolve) {
+		// Nothing to do by default
 	}
 
 	/** @return True if this plugin did something which will solve / change the error in future, and so loader won't ask
